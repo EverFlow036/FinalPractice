@@ -1,195 +1,308 @@
+package learn;
+
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.Random;
 
-class SliderModel {
-    int[][] grid = {{1, 2, 3}, {4, 5, 6}, {7, 8, 0}};
-    int r0 = 2, c0 = 2;
+public class learning extends Application {
 
-    void reset() {
-        int[][] def = {{1, 2, 3}, {4, 5, 6}, {7, 8, 0}};
-        for(int i=0; i<3; i++) System.arraycopy(def[i], 0, grid[i], 0, 3);
-        r0 = 2; c0 = 2;
-    }
+    int[][] board = {
+            {1, 2, 3},
+            {4, 5, 6},
+            {7, 8, 0}
+    };
 
-    boolean shift(int r, int c) {
-        if(Math.abs(r - r0) + Math.abs(c - c0) == 1) {
-            grid[r0][c0] = grid[r][c];
-            grid[r][c] = 0;
-            r0 = r;
-            c0 = c;
-            return true;
-        }
-        return false;
-    }
+    int[][] startBoard = new int[3][3];
+    Button[][] tileButtons = new Button[3][3];
 
-    boolean checkWin() {
-        int t = 1;
-        for(int i=0; i<3; i++) {
-            for(int j=0; j<3; j++) {
-                if(i == 2 && j == 2) return grid[i][j] == 0;
-                if(grid[i][j] != t++) return false;
-            }
-        }
-        return true;
-    }
-}
+    int movesUsed = 0;
+    int maxMoves = 20;
+    boolean gameOver = false;
 
-public class NumberSliderAppV2 extends Application {
-    private SliderModel model = new SliderModel();
-    private int stepCount = 0;
-    private int maxAllowed = 20;
-    private boolean finished = false;
-    private List<int[][]> stack = new ArrayList<>();
-    private Button[][] buttons = new Button[3][3];
-    private Label lblStatus = new Label("Ready");
-    private Label lblMoves = new Label("Moves: 0 / 20");
-    private TextField txtMax = new TextField("20");
+    Label movesLabel = new Label("Moves Used: 0 / 20");
+    Label resultLabel = new Label("Start the game!");
+    TextField maxField = new TextField("20");
+
+    ArrayList<int[][]> history = new ArrayList<>();
+    Random random = new Random();
 
     @Override
     public void start(Stage stage) {
-        stage.setTitle("Slider Game V2");
-        HBox topBox = new HBox(8);
-        topBox.setAlignment(Pos.CENTER);
-        topBox.setPadding(new Insets(10));
-        Button btnPlay = new Button("Play");
-        Button btnReset = new Button("Reset");
-        Button btnUndo = new Button("Undo");
-        Button btnSet = new Button("Set");
-        txtMax.setPrefWidth(45);
-        topBox.getChildren().addAll(btnPlay, btnReset, btnUndo, txtMax, btnSet);
+        Label titleLabel = new Label("NUMBER SLIDER GAME");
+        titleLabel.setStyle("-fx-font-size: 22px; -fx-font-weight: bold;");
 
-        GridPane gridPane = new GridPane();
-        gridPane.setAlignment(Pos.CENTER);
-        gridPane.setHgap(4);
-        gridPane.setVgap(4);
-        for(int r=0; r<3; r++) {
-            for(int c=0; c<3; c++) {
-                Button btn = new Button();
-                btn.setPrefSize(70, 70);
-                final int row = r;
-                final int col = c;
-                btn.setOnAction(e -> clickTile(row, col));
-                buttons[r][c] = btn;
-                gridPane.add(btn, c, r);
+        Label maxLabel = new Label("Set Maximum Moves:");
+        maxField.setPrefWidth(50);
+
+        Button setButton = new Button("SET");
+        HBox maxBox = new HBox(8, maxLabel, maxField, setButton);
+        maxBox.setAlignment(Pos.CENTER);
+
+        Button resetButton = new Button("RESET");
+        Button playButton = new Button("PLAY");
+        Button undoButton = new Button("UNDO");
+
+        resetButton.setPrefWidth(90);
+        playButton.setPrefWidth(90);
+        undoButton.setPrefWidth(90);
+
+        HBox buttonBox = new HBox(20, resetButton, playButton, undoButton);
+        buttonBox.setAlignment(Pos.CENTER);
+
+        Label instructionLabel = new Label("Arrange the following numbers!");
+
+        GridPane boardPane = new GridPane();
+        boardPane.setAlignment(Pos.CENTER);
+        boardPane.setHgap(10);
+        boardPane.setVgap(10);
+
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                Button tile = new Button();
+                tile.setPrefSize(90, 70);
+
+                final int r = row;
+                final int c = col;
+
+                tile.setOnAction(e -> moveTile(r, c));
+
+                tileButtons[row][col] = tile;
+                boardPane.add(tile, col, row);
             }
         }
 
-        VBox bottomBox = new VBox(5);
-        bottomBox.setAlignment(Pos.CENTER);
-        bottomBox.getChildren().addAll(lblStatus, lblMoves);
+        resetButton.setOnAction(e -> resetGame());
+        playButton.setOnAction(e -> playGame());
+        undoButton.setOnAction(e -> undoMove());
+        setButton.setOnAction(e -> setMaximumMoves());
 
-        btnPlay.setOnAction(e -> {
-            List<Integer> list = new ArrayList<>();
-            for(int i=0; i<=8; i++) list.add(i);
-            do {
-                Collections.shuffle(list);
-            } while(!validShuffle(list) || isOrdered(list));
-            int idx = 0;
-            for(int i=0; i<3; i++) {
-                for(int j=0; j<3; j++) {
-                    model.grid[i][j] = list.get(idx++);
-                    if(model.grid[i][j] == 0) { model.r0 = i; model.c0 = j; }
-                }
-            }
-            stepCount = 0;
-            stack.clear();
-            finished = false;
-            lblStatus.setText("Playing");
-            updateView();
-        });
+        VBox root = new VBox(15);
+        root.setPadding(new Insets(20));
+        root.setAlignment(Pos.TOP_CENTER);
 
-        btnReset.setOnAction(e -> {
-            model.reset();
-            stepCount = 0;
-            stack.clear();
-            finished = false;
-            lblStatus.setText("Reset");
-            updateView();
-        });
+        root.getChildren().addAll(
+                titleLabel,
+                maxBox,
+                buttonBox,
+                instructionLabel,
+                boardPane,
+                movesLabel,
+                resultLabel
+        );
 
-        btnUndo.setOnAction(e -> {
-            if(finished || stack.isEmpty()) return;
-            int[][] prev = stack.remove(stack.size() - 1);
-            for(int i=0; i<3; i++) System.arraycopy(prev[i], 0, model.grid[i], 0, 3);
-            for(int i=0; i<3; i++) {
-                for(int j=0; j<3; j++) {
-                    if(model.grid[i][j] == 0) { model.r0 = i; model.c0 = j; }
-                }
-            }
-            stepCount--;
-            lblStatus.setText("Undone");
-            updateView();
-        });
+        copyBoard(board, startBoard);
+        updateBoard();
 
-        btnSet.setOnAction(e -> {
-            try {
-                int v = Integer.parseInt(txtMax.getText().trim());
-                if(v > 0) { maxAllowed = v; updateView(); }
-            } catch(Exception ignored) {}
-        });
-
-        BorderPane root = new BorderPane();
-        root.setTop(topBox);
-        root.setCenter(gridPane);
-        root.setBottom(bottomBox);
-        updateView();
-        stage.setScene(new Scene(root, 320, 390));
+        Scene scene = new Scene(root, 420, 520);
+        stage.setTitle("Number Slider Game");
+        stage.setScene(scene);
         stage.show();
     }
 
-    private void clickTile(int r, int c) {
-        if(finished) return;
-        int[][] snap = new int[3][3];
-        for(int i=0; i<3; i++) System.arraycopy(model.grid[i], 0, snap[i], 0, 3);
-        if(model.shift(r, c)) {
-            stack.add(snap);
-            stepCount++;
-            if(model.checkWin() && stepCount < maxAllowed) {
-                lblStatus.setText("Congrats, WINNER!!!");
-                finished = true;
-            } else if(stepCount >= maxAllowed) {
-                lblStatus.setText("You FAILED!");
-                finished = true;
+    public void playGame() {
+        setSolvedBoard();
+
+        int lastValue = -1;
+
+        for (int i = 0; i < 25; i++) {
+            ArrayList<int[]> possibleMoves = new ArrayList<>();
+
+            for (int row = 0; row < 3; row++) {
+                for (int col = 0; col < 3; col++) {
+                    if (canMove(row, col) && board[row][col] != lastValue) {
+                        possibleMoves.add(new int[]{row, col});
+                    }
+                }
             }
-            updateView();
+
+            int[] chosen = possibleMoves.get(random.nextInt(possibleMoves.size()));
+            int row = chosen[0];
+            int col = chosen[1];
+
+            lastValue = board[row][col];
+            swapWithEmpty(row, col);
+        }
+
+        copyBoard(board, startBoard);
+        history.clear();
+        movesUsed = 0;
+        gameOver = false;
+        resultLabel.setText("Game started!");
+        updateBoard();
+    }
+
+    public void resetGame() {
+        copyBoard(startBoard, board);
+        history.clear();
+        movesUsed = 0;
+        gameOver = false;
+        resultLabel.setText("Game reset!");
+        updateBoard();
+    }
+
+    public void undoMove() {
+        if (history.isEmpty()) {
+            return;
+        }
+
+        int[][] lastBoard = history.remove(history.size() - 1);
+        copyBoard(lastBoard, board);
+
+        if (movesUsed > 0) {
+            movesUsed--;
+        }
+
+        gameOver = false;
+        resultLabel.setText("Move undone!");
+        updateBoard();
+    }
+
+    public void setMaximumMoves() {
+        try {
+            int value = Integer.parseInt(maxField.getText().trim());
+
+            if (value > 0) {
+                maxMoves = value;
+                resultLabel.setText("Maximum moves set!");
+                updateBoard();
+            } else {
+                resultLabel.setText("Enter a number above 0.");
+            }
+        } catch (Exception e) {
+            resultLabel.setText("Invalid input.");
         }
     }
 
-    private boolean validShuffle(List<Integer> list) {
-        int inv = 0;
-        List<Integer> sub = new ArrayList<>(list);
-        sub.remove(Integer.valueOf(0));
-        for(int i=0; i<sub.size(); i++) {
-            for(int j=i+1; j<sub.size(); j++) {
-                if(sub.get(i) > sub.get(j)) inv++;
-            }
+    public void moveTile(int row, int col) {
+        if (gameOver) {
+            return;
         }
-        return inv % 2 == 0;
+
+        if (canMove(row, col)) {
+            int[][] oldBoard = new int[3][3];
+            copyBoard(board, oldBoard);
+            history.add(oldBoard);
+
+            swapWithEmpty(row, col);
+            movesUsed++;
+
+            if (isWinner() && movesUsed <= maxMoves) {
+                resultLabel.setText("Winner!");
+                gameOver = true;
+            } else if (movesUsed >= maxMoves) {
+                resultLabel.setText("You FAILED!");
+                gameOver = true;
+            } else {
+                resultLabel.setText("Keep playing!");
+            }
+
+            updateBoard();
+        }
     }
 
-    private boolean isOrdered(List<Integer> list) {
-        return list.equals(List.of(1, 2, 3, 4, 5, 6, 7, 8, 0));
-    }
+    public boolean canMove(int row, int col) {
+        int emptyRow = 0;
+        int emptyCol = 0;
 
-    private void updateView() {
-        for(int i=0; i<3; i++) {
-            for(int j=0; j<3; j++) {
-                if(model.grid[i][j] == 0) buttons[i][j].setText("");
-                else buttons[i][j].setText(String.valueOf(model.grid[i][j]));
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                if (board[i][j] == 0) {
+                    emptyRow = i;
+                    emptyCol = j;
+                }
             }
         }
-        lblMoves.setText("Moves: " + stepCount + " / " + maxAllowed);
+
+        int distance = Math.abs(row - emptyRow) + Math.abs(col - emptyCol);
+        return distance == 1;
     }
-}
-            this.gameOver = true;
+
+    public void swapWithEmpty(int row, int col) {
+        int emptyRow = 0;
+        int emptyCol = 0;
+
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                if (board[i][j] == 0) {
+                    emptyRow = i;
+                    emptyCol = j;
+                }
+            }
         }
+
+        board[emptyRow][emptyCol] = board[row][col];
+        board[row][col] = 0;
+    }
+
+    public boolean isWinner() {
+        int correct = 1;
+
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                if (row == 2 && col == 2) {
+                    return board[row][col] == 0;
+                }
+
+                if (board[row][col] != correct) {
+                    return false;
+                }
+
+                correct++;
+            }
+        }
+
+        return true;
+    }
+
+    public void setSolvedBoard() {
+        int num = 1;
+
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                if (row == 2 && col == 2) {
+                    board[row][col] = 0;
+                } else {
+                    board[row][col] = num;
+                    num++;
+                }
+            }
+        }
+    }
+
+    public void copyBoard(int[][] source, int[][] destination) {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                destination[row][col] = source[row][col];
+            }
+        }
+    }
+
+    public void updateBoard() {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                if (board[row][col] == 0) {
+                    tileButtons[row][col].setText("");
+                } else {
+                    tileButtons[row][col].setText(String.valueOf(board[row][col]));
+                }
+            }
+        }
+
+        movesLabel.setText("Moves Used: " + movesUsed + " / " + maxMoves);
+    }
+
+    public static void main(String[] args) {
+        launch(args);
     }
 }
